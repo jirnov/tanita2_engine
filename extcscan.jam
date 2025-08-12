@@ -1,0 +1,161 @@
+import type scanner ;
+
+local .scan-terminators = ;
+
+rule set-scan-terminators ( scan-terminators * )
+{
+	.scan-terminators += $(scan-terminators) ;
+}
+
+rule get-scan-terminators ( )
+{
+	return $(.scan-terminators) ;
+}
+
+rule add-scan-terminators ( scan-terminators * )
+{
+	set-scan-terminators $(scan-terminators) [ get-scan-terminators ] ;
+}
+
+#
+# Import rules at global scope
+#
+local verbs = add get set ;
+IMPORT extcscan : $(verbs)-scan-terminators : : extcscan.$(verbs)-scan-terminators ;
+
+class ext-c-scanner : c-scanner
+{
+    import path ;
+    import regex ;
+    import scanner ;
+    import sequence ;
+		import set ;
+    import virtual-target ;
+
+    rule __init__ ( includes * )
+    {
+        c-scanner.__init__ $(includes) ;
+
+				local argv = [ modules.peek : ARGV ] ;
+
+				if --extcscan-debug in $(argv)
+				{
+					self.debug = yes ;
+				}
+				
+				if -a in $(argv)
+				{
+					self.rebuild-all = yes ;
+				}
+    }
+
+    rule process ( target : matches * : binding )
+    {
+				if $(self.rebuild-all)
+				{
+						c-scanner.process $(target) : $(matches) : $(binding) ;
+				}
+				else
+				{
+						process-with-terminators $(target) : $(matches) : $(binding) ;
+				}
+    }
+
+		rule process-with-terminators ( target : matches * : binding )
+		{
+				local angle  = [ regex.transform $(matches) : "<(.*)>"   ] ;
+				local quoted = [ regex.transform $(matches) : "\"(.*)\"" ] ;
+
+				# CONSIDER: the new scoping rule seem to defeat "on target" variables.
+				local g = [ on $(target) return $(HDRGRIST) ] ;
+				local b = [ NORMALIZE_PATH $(binding:D) ] ;
+
+				# Attach binding of including file to included targets. When a target is
+				# directly created from virtual target this extra information is
+				# unnecessary. But in other cases, it allows us to distinguish between
+				# two headers of the same name included from different places. We do not
+				# need this extra information for angle includes, since they should not
+				# depend on including file (we can not get literal "." in include path).
+				local g2 = $(g)"#"$(b) ;
+
+				angle = $(angle:G=$(g)) ;
+				quoted = $(quoted:G=$(g2)) ;
+
+				local all = $(angle) $(quoted) ;
+
+				#
+				# Stop processing includes/header scans on terminators
+				#
+				local scan-terms = [ extcscan.get-scan-terminators ] ;
+				local ungristed-angle = $(angle:G=) ;
+				local ungristed-quoted = $(quoted:G=) ;
+				local non-term-angle ;
+				local non-term-quoted ;
+
+				# TODO: Match each scan-term separately?
+				for local a in $(ungristed-angle)
+				{
+					if ! [ MATCH ($(scan-terms)) : $(a) ]
+					{
+						non-term-angle += $(a) ;
+					}
+				}
+				
+				for local a in $(ungristed-quoted)
+				{
+					if ! [ MATCH ($(scan-terms)) : $(a) ]
+					{
+						non-term-quoted += $(a) ;
+					}
+				}
+				
+				local non-term-all = $(non-term-quoted) $(non-term-angle) ;
+				
+				if $(self.debug)
+				{
+					echo "Terminators   : " $(scan-terms) ;
+					echo "Target        : " $(target:G=) ;
+					echo "Inclusions    : " $(all:G=) ;
+					echo "Non-term incs : " $(non-term-all) ;
+					echo "Include dirs  : " $(self.includes:G=) ;
+					echo "" ;
+				}
+				
+				if $(non-term-all)
+				{
+					local gristed-non-term-angle = $(non-term-angle:G=$(g)) ;
+					local gristed-non-term-quoted = $(non-term-quoted:G=$(g2)) ;
+					local gristed-non-term-all = $(gristed-non-term-quoted) $(gristed-non-term-angle) ;
+	
+					INCLUDES $(target) : $(gristed-non-term-all) ;
+					NOCARE $(gristed-non-term-all) ;
+					SEARCH on $(gristed-non-term-angle) = $(self.includes:G=) ;
+					SEARCH on $(gristed-non-term-quoted) = $(b) $(self.includes:G=) ;
+		
+					# Just propagate the current scanner to includes in hope that includes
+					# do not change scanners.
+					if $(self.debug)
+					{
+						echo NOMATCH_ -> $(angle) $(quoted) ;
+					}
+					scanner.propagate $(__name__) : $(all) : $(target) ;
+				}
+		
+				ISFILE $(all) ;
+		}
+
+}
+
+scanner.register ext-c-scanner : include ;
+
+# It most cases where a CPP file or a H file is a source of some action, we
+# should rebuild the result if any of files included by CPP/H are changed. One
+# case when this is not needed is installation, which is handled specifically.
+type.set-scanner CPP : ext-c-scanner ;
+type.set-scanner C   : ext-c-scanner ;
+# One case where scanning of H/HPP files is necessary is PCH generation -- if
+# any header included by HPP being precompiled changes, we need to recompile the
+# header.
+type.set-scanner H   : ext-c-scanner ;
+type.set-scanner HPP : ext-c-scanner ;
+

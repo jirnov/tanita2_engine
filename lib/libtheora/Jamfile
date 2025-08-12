@@ -1,0 +1,7 @@
+NAME = libtheora ;
+static-lib $(NAME)
+    : [ glob-tree *.c ]
+    : <warnings>off
+      <define>USE_ASM
+    ;
+install . : $(NAME) : <location>$(LIB) ;

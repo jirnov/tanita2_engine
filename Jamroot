@@ -1,0 +1,62 @@
+import os custom feature ;
+
+# Настройки по умолчанию.
+feature.set-default threading     : multi ;
+
+# Пути.
+constant DXSDK : [ os.environ DXSDK_DIR ] ;
+path-constant ROOT : . ;
+path-constant INCLUDE : $(ROOT)/include ;
+path-constant BIN : $(ROOT)/bin ;
+path-constant LIB : $(BIN)/lib ;
+path-constant SYM : $(BIN) ;
+
+local argv = [ modules.peek : ARGV ] ;
+if --fastbuild in $(argv)
+{
+    import extcscan ;
+    extcscan.set-scan-terminators ^boost/
+                                  ^flamenco/
+                                  ^lzma/
+                                  ^ogg/
+                                  ^python/
+                                  ^theora/
+                                  ^vorbis/
+                                  ^wavpack/ ;
+}
+
+# Общие настройки.
+project
+    : build-dir tmp
+    : requirements
+        <include>$(INCLUDE)
+        
+        # Добавление суффикса типа сборки для библиотек и exe.
+        <tag>@custom.tag
+        
+        # Отключение предупреждений о небезопасности ф-й CRT.
+        <define>_CRT_SECURE_NO_WARNINGS
+        <define>_SCL_SECURE_NO_WARNINGS
+        
+        # Отключение автоматической линковки с библиотеками boost.
+        <define>BOOST_ALL_NO_LIB
+        
+        # Библиотека boost::python линкуется статически.
+        <define>BOOST_PYTHON_STATIC_LIB
+        
+        # Модули python, объявленные с пом. boost::python, не экспортируются.
+        <define>BOOST_PYTHON_STATIC_MODULE
+        
+        # Python компилируется как статическая библиотека.
+        <define>Py_NO_ENABLE_SHARED
+        
+        # Многопоточная сборка.
+        <toolset>msvc:<cxxflags>/MP
+        
+        # Путь для установки отладочных символов.
+        <debug-symbols>on
+        <symbols-location>$(SYM)
+    ;
+
+alias tanita2 : src ;
+explicit tanita2 ;

@@ -1,0 +1,11 @@
+syntax:glob
+*.dmp
+*.suo
+*.ncb
+*.aps
+*.pyc
+build\*\*.user
+real-boost-build.jam
+
+regexp:^tmp
+regexp:^bin

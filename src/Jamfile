@@ -1,0 +1,46 @@
+import path ;
+import buildrev ;
+import custom : userlib install-with-symbols ;
+project
+    : requirements
+        <warnings>all
+        <include>$(DXSDK)/include
+        <include>$(INCLUDE)/python
+        
+        <include>$(INCLUDE)/deprecated
+        <include>$(ROOT)/!refactor/Sources
+        <include>$(ROOT)/!refactor/Engine
+        <include>application/resource
+        
+        <library-path>$(DXSDK)/Lib/x86
+        <library-path>$(LIB)
+    ;
+
+# Стандартные библиотеки.
+STDLIBRARIES = shell32 dbghelp user32 advapi32 d3d9 d3dx9 dxerr9
+               dxguid dinput8 dsound ddraw ;
+lib $(STDLIBRARIES) ;
+
+
+# Библиотеки из дерева исходников движка.
+USERLIBRARIES = libboost_program_options libboost_python
+                libogg libvorbis libtheora libpython liblzma libflamenco ;
+userlib $(USERLIBRARIES) ;
+
+
+# Файлы старый движок.
+DEPRECATED_SOURCES = [ path.glob-tree $(ROOT)/!refactor : *.cpp ] ;
+
+
+# Исполняемый файл.
+cpp-pch precompiled : precompiled.h : <include>. ;
+exe tanita2
+    : precompiled [ glob-tree *.cpp ] config/buildRevision.cpp.template
+      $(DEPRECATED_SOURCES)
+      application/resource/resource.rc
+    
+    : <user-interface>gui
+      <library>$(STDLIBRARIES)
+      <library>$(USERLIBRARIES)
+    ;
+install-with-symbols . : tanita2 : <location>$(BIN) ;

@@ -1,0 +1,10 @@
+NAME = python ;
+static-lib $(NAME)
+    : [ glob-tree *.c ]
+    : <warnings>off
+      <include>$(INCLUDE)/python
+      <include>zlib/include
+      <include>python
+      <include>psyco/i386
+    ;
+install . : $(NAME) : <location>$(LIB) ;

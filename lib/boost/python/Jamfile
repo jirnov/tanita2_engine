@@ -1,0 +1,7 @@
+NAME = boost_python ;
+static-lib $(NAME)
+    : [ glob-tree *.cpp ]
+    : <warnings>off
+      <include>$(INCLUDE)/python
+    ;
+install . : $(NAME) : <location>$(LIB) ;

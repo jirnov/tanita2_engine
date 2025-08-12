@@ -1,0 +1,109 @@
+import type ;
+import generators ;
+import feature ;
+import common ;
+import "class" : new ;
+import custom ;
+import string ;
+
+type.register TEMPLATE : template ;
+
+class buildrev-target : file-target
+{
+    rule __init__ ( name exact ? : type ? : project : action ? : path ? : doupdate )
+    {
+        file-target.__init__ $(name) $(exact) : $(type) : $(project) : $(action) : $(path) ;
+        self.doupdate = $(doupdate) ;
+    }
+    
+    rule actualize-location ( target )
+    {
+        file-target.actualize-location $(target) ;
+        
+        # В зависимости от флага doupdate файл или безусловно пересобирается, или
+        # его временная метка игнорируется.
+        if true = $(self.doupdate)
+        {
+            ALWAYS $(target) ;
+        }
+        else
+        {
+            NOUPDATE $(target) ;
+        }
+    }
+}
+
+class cpp-generator : generator
+{
+    import "class" : new ;
+    import custom ;
+    import string ;
+    
+    rule remove-eol ( str )
+    {
+        local result = [ string.chars $(str) ] ;
+        return [ string.join $(result[0--3]) ] ;
+    }
+    
+    rule __init__ ( * : * )
+    {
+        generator.__init__ $(1) : $(2) : $(3) : $(4) : $(5) : $(6) : $(7) : $(8) : $(9) ;
+        
+        # Текущая версия (без финальных \r\n)
+        local python = [ custom.python-interpreter ] ;
+        local code_prolog = "import sys; sys.path.append('build/jamscripts');" ;
+        local code = $(code_prolog) "import buildrev; print buildrev.get_version()" ;
+        code = [ string.join $(code) ] ;
+        local version = [ SHELL "\"\"$(python)\" -c \"$(code)\"\"" ] ;
+        self.version = [ remove-eol $(version) ] ;
+        
+        echo "Sources: $(self.version)" ;
+        echo ;
+        
+        # Сравниваем с предыдущей.
+        self.doupdate = false ;
+        local code = $(code_prolog)
+                     "import updaterev; "
+                     "print updaterev.check_version(\\\"$(self.version)\\\", 'tmp/version.txt')" ;
+        code = [ string.join $(code) ] ;
+        local result = [ SHELL "\"\"$(python)\" -c \"$(code)\"\"" ] ;
+        if "False" = [ remove-eol $(result) ]
+        {
+            self.doupdate = true ;
+            SHELL "\"\"$(python)\" -c \"file('tmp/version.txt', 'wt').write(\\\"$(self.version)\\\")\"\"" ;
+        }
+    }
+    
+    rule run ( project name ? : property-set : sources * )
+    {
+        if ! $(sources[2]) && [ $(sources[1]).type ] = TEMPLATE
+        {
+            if ! $(name)
+            {
+                name = [ generator.determine-output-name $(sources) ] ;
+            }
+            
+            local a = [ new action $(sources[1]) : buildrev.get-revision : $(property-set) ] ;
+            local t = [ new buildrev-target $(name) : CPP : $(project) : $(a) : : $(self.doupdate) ] ;
+            
+            return [ virtual-target.register $(t) ] ;
+        }
+    }
+    
+    rule actualize-location ( target )
+    {
+        NOTFILE $(target) ;
+        ALWAYS $(target) ;
+    }
+}
+
+generators.register [ new cpp-generator buildrev.template : TEMPLATE : CPP ] ;
+
+rule get-revision ( targets * : sources * : properties * )
+{
+    python on $(<) = [ custom.python-interpreter ] ;
+}
+actions get-revision
+{
+    "$(python)" -c "import sys; sys.path.append('build/jamscripts'); import updaterev; updaterev.update_build_revision(r\"$(>)\", 'tmp/version.txt', r\"$(<)\")" ;
+}

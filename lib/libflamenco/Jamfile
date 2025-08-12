@@ -1,0 +1,7 @@
+NAME = libflamenco ;
+static-lib $(NAME)
+    : [ glob-tree *.cpp ]
+    : <warnings>off
+      <include>flamenco
+    ;
+install . : $(NAME) : <location>$(LIB) ;

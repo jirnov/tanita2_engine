@@ -1,0 +1,18 @@
+/*
+ Движок "Танита2".
+ Идентификатор ревизии сборки в системе контроля версий.
+ Внимание! Файл перезаписывается при каждой сборке.
+ */
+#include <precompiled.h>
+#include <tanita2/config/config.h>
+
+namespace config
+{
+
+// Идентификатор ревизии сборки в системе контроля версий.
+const wchar_t * projectBuildRevision_type::smValue = L"not versioned";
+
+// Ревизия сборки неизвестна или содержит локальные изменения.
+bool projectIsNotVersioned_type::smValue = true;
+
+} // namespace config

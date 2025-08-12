@@ -1,0 +1,10 @@
+module { ARGV = $(ARGV) debug-symbols=on ; }
+
+if ! $(BOOST_BUILD_PATH)
+{
+    include real-boost-build.jam ;
+}
+else
+{
+    boost-build $(BOOST_BUILD_PATH)/tools/build/v2 ;
+}

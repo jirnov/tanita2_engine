@@ -1,0 +1,7 @@
+import path ;
+PROJECTS = [ glob * : boost ] [ glob boost/* : boost/detail ] ;
+
+for local proj in $(PROJECTS)
+{
+    build-project $(proj) ;
+}

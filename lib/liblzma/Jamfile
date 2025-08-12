@@ -1,0 +1,7 @@
+NAME = liblzma ;
+static-lib $(NAME)
+    : [ glob-tree *.c ]
+    : <warnings>off
+      <include>lzma
+    ;
+install . : $(NAME) : <location>$(LIB) ;

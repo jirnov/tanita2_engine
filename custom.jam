@@ -1,0 +1,103 @@
+import virtual-target ;
+import type ;
+import generators ;
+import common ;
+import project ;
+import feature : feature ;
+import "class" : new ;
+import path ;
+
+# Список всех поддерживаемых вариантов сборки.
+ALL_VARIANTS = debug release ;
+
+python-path = [ W32_GETREG "HKEY_LOCAL_MACHINE\\SOFTWARE\\Python\\PythonCore\\2.5\\InstallPath" ] ;
+python = [ path.join $(python-path) "python" ] ;
+if ! python-path
+{
+    import errors ;
+    errors.user-error "Python 2.5 is not installed" ;
+}
+
+# Получение пути к интерпретатору питона.
+rule python-interpreter ( )
+{
+    return $(python) ;
+}
+
+# Добавление суффикса файла данного типа в зависимости от варианта сборки.
+rule add-suffix ( name : type : variant )
+{
+    local fileName = $(name) ;
+    if $(type) in EXE STATIC_LIB SHARED_LIB IMPORT_LIB
+    {
+        switch $(variant)
+        {
+        case "debug" : fileName = $(fileName)"_d" ;
+        }
+    }
+    return $(fileName) ;
+}
+
+# Правило для вычисления суффикса исполняемых файлов и библиотек в зависимости от варианта сборки.
+rule tag ( name : type ? : property-set )
+{
+    local variant = [ $(property-set).get <variant> ] ;
+    local fileName = [ add-suffix $(name) : $(type) : $(variant) ] ;
+    return [ virtual-target.add-prefix-and-suffix $(fileName) : $(type) : $(property-set) ] ;
+}
+
+# Правило для объявления пользовательской библиотеки.
+# Выбирает отладочную или релизную версию в зависимости от режима сборки.
+rule userlib ( names + : properties * )
+{
+    for local name in $(names)
+    {
+        for local variant in $(ALL_VARIANTS)
+        {
+            local name-with-suffix = [ add-suffix $(name) : STATIC_LIB : $(variant) ] ;
+            lib $(name) : : <variant>$(variant) <name>$(name-with-suffix) ;
+        }
+    }
+}
+
+# Тип для отладочных символов.
+type.register PDB : pdb ;
+
+# Правило для создания pdb.
+rule generate-pdb ( project name : property-set : sources * )
+{
+    if [ $(sources[1]).type ] in EXE SHARED_LIB
+    {
+        local a = [ new non-scanning-action $(sources) : custom.make-pdb : $(property-set) ] ;
+        local s = [ $(sources).name ] ;
+        return [ new file-target $(s:B) : PDB : $(project) : $(a) ] ;
+    }
+}
+rule make-pdb
+{
+    CP on $(<) = [ common.copy-command ] ;
+}
+actions make-pdb
+{
+    $(CP) $(>:S=.pdb) $(<)
+    echo import os; s = os.stat(r"$(>)"); os.utime(r"$(<)", (s.st_mtime, s.st_mtime)) > $(>).pdb.rsp
+    "$(python)" $(>).pdb.rsp
+}
+
+# Путь, куда будут скопированы символы.
+feature symbols-location : : free ;
+
+# Правило для установки файлов вместе с символами.
+rule install-with-symbols ( target : sources * : requirements * )
+{
+    install $(target) : $(sources) : $(requirements) ;
+    
+    local project = [ project.current ] ;
+    local prop-set = [ $(project).get requirements ] ;
+    local symbols-location = [ $(prop-set).get <symbols-location> ] ;
+    for local s in $(sources)
+    {
+        generate $(s).pdb : $(s) : <generating-rule>@custom.generate-pdb ;
+        install $(s).installed-pdb : $(s).pdb : <location>$(symbols-location) ;
+    }
+}

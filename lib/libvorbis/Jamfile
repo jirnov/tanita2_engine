@@ -1,0 +1,6 @@
+NAME = libvorbis ;
+static-lib $(NAME)
+    : [ glob-tree *.c ]
+    : <warnings>off
+    ;
+install . : $(NAME) : <location>$(LIB) ;

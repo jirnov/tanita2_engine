@@ -1,0 +1,6 @@
+NAME = libogg ;
+static-lib $(NAME)
+    : [ glob *.c ]
+    : <warnings>all
+    ;
+install . : $(NAME) : <location>$(LIB) ;

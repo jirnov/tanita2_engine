@@ -1,0 +1,6 @@
+NAME = boost_program_options ;
+static-lib $(NAME)
+    : [ glob *.cpp ]
+    : <warnings>off
+    ;
+install . : $(NAME) : <location>$(LIB) ;
